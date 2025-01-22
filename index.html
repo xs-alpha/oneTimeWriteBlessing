@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路径生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .grid {
+            display: grid;
+            grid-gap: 5px;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #ccc;
+            background-color: #f8f8f8;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .start {
+            background-color: lightgreen;
+        }
+
+        .end {
+            background-color: lightcoral;
+        }
+
+        .empty {
+            background-color: lightgray;
+        }
+
+        .path {
+            position: absolute;
+            background-color: blue;
+            height: 3px;
+            transform-origin: top left;
+        }
+
+        .arrow {
+            position: absolute;
+            color: blue;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>路径生成器</h1>
+    <p>输入行数和列数，然后生成网格。</p>
+
+    <div>
+        <label for="rows">行数：</label>
+        <input type="number" id="rows" value="6" min="1" style="width: 50px;">
+        <label for="cols">列数：</label>
+        <input type="number" id="cols" value="6" min="1" style="width: 50px;">
+        <button onclick="initializeGrid()">生成网格</button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+
+    <button onclick="generatePath()">生成路径</button>
+
+    <script>
+        let rows = 6; // 默认行数
+        let cols = 6; // 默认列数
+        let gridData = [];
+        let start = null;
+        let end = null;
+        let emptyCells = new Set();
+
+        // 初始化网格
+        function initializeGrid() {
+            rows = parseInt(document.getElementById('rows').value, 10);
+            cols = parseInt(document.getElementById('cols').value, 10);
+
+            if (rows < 1 || cols < 1) {
+                alert("行数和列数必须大于0！");
+                return;
+            }
+
+            gridData = Array.from({ length: rows }, () => Array(cols).fill('F'));
+            start = null;
+            end = null;
+            emptyCells = new Set();
+
+            const grid = document.getElementById('grid');
+            grid.style.gridTemplateColumns = `repeat(${cols}, 50px)`;
+            renderGrid();
+        }
+
+        // 渲染网格
+        function renderGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+
+            gridData.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    const div = document.createElement('div');
+                    div.className = 'cell';
+                    div.textContent = cell === 'F' ? `F${i * cols + j + 1}` : '';
+
+                    if (start && start[0] === i && start[1] === j) {
+                        div.classList.add('start');
+                    } else if (end && end[0] === i && end[1] === j) {
+                        div.classList.add('end');
+                    } else if (emptyCells.has(`${i},${j}`)) {
+                        div.classList.add('empty');
+                    }
+
+                    div.onclick = () => handleCellClick(i, j);
+                    grid.appendChild(div);
+                });
+            });
+        }
+
+        // 处理单元格点击
+        function handleCellClick(i, j) {
+            if (!start) {
+                start = [i, j];
+            } else if (!end) {
+                end = [i, j];
+            } else {
+                emptyCells.add(`${i},${j}`);
+            }
+            renderGrid();
+        }
+
+        // 使用DFS生成最长路径
+        function generatePath() {
+            if (!start || !end) {
+                alert('请先选择起点和终点！');
+                return;
+            }
+
+            const visited = new Set();
+            let maxPath = [];
+
+            function dfs(x, y, path) {
+                if (x === end[0] && y === end[1]) {
+                    if (path.length > maxPath.length) {
+                        maxPath = [...path];
+                    }
+                    return;
+                }
+
+                const directions = [
+                    [0, 1], [1, 0], [0, -1], [-1, 0] // 右，下，左，上
+                ];
+
+                for (const [dx, dy] of directions) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+
+                    if (
+                        nx >= 0 && ny >= 0 && nx < rows && ny < cols &&
+                        !visited.has(`${nx},${ny}`) &&
+                        !emptyCells.has(`${nx},${ny}`)
+                    ) {
+                        visited.add(`${nx},${ny}`);
+                        dfs(nx, ny, [...path, [nx, ny]]);
+                        visited.delete(`${nx},${ny}`);
+                    }
+                }
+            }
+
+            visited.add(`${start[0]},${start[1]}`);
+            dfs(start[0], start[1], [start]);
+
+            if (maxPath.length === 0) {
+                alert('无法生成路径！');
+                return;
+            }
+
+            drawPath(maxPath);
+        }
+
+        // 绘制路径
+        function drawPath(path) {
+            // 清除之前的路径
+            document.querySelectorAll('.path, .arrow').forEach(element => element.remove());
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const [x1, y1] = path[i];
+                const [x2, y2] = path[i + 1];
+
+                const cell1 = grid.children[x1 * cols + y1];
+                const cell2 = grid.children[x2 * cols + y2];
+
+                const line = document.createElement('div');
+                line.className = 'path';
+
+                const xOffset = cell2.offsetLeft - cell1.offsetLeft;
+                const yOffset = cell2.offsetTop - cell1.offsetTop;
+
+                line.style.width = Math.sqrt(xOffset * xOffset + yOffset * yOffset) + 'px';
+                line.style.left = cell1.offsetLeft + 25 + 'px';
+                line.style.top = cell1.offsetTop + 25 + 'px';
+                line.style.transform = `rotate(${Math.atan2(yOffset, xOffset)}rad)`;
+
+                grid.appendChild(line);
+
+                // 添加箭头
+                const arrow = document.createElement('div');
+                arrow.className = 'arrow';
+                arrow.textContent = '→';
+                arrow.style.fontSize = '14px'; // 放大箭头字体
+                arrow.style.left = cell1.offsetLeft + xOffset / 2 + 15 + 'px'; // 调整位置偏移
+                arrow.style.top = cell1.offsetTop + yOffset / 2 + 15 + 'px'; // 调整位置偏移
+                arrow.style.transform = `rotate(${Math.atan2(yOffset, xOffset)}rad)`;
+
+                grid.appendChild(arrow);
+            }
+        }
+
+        // 初始化默认网格
+        initializeGrid();
+    </script>
+</body>
+</html>
